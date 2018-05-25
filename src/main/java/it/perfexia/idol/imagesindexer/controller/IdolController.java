@@ -167,11 +167,15 @@ public class IdolController {
 		result.put("#DREREFERENCE", fileName);
 		result.put("#DREFIELD FILENAME_FULL=", "\""+fileName+"\"");
 		result.put("#DREDBNAME", idolBynaryDb);
-		
+				
 		String nameOfFile = file.getName();
 		//System.out.println("\n\tATTRIBUTE OF FILE - nameOfFile: " + nameOfFile);
 		result.put("#DREFIELD NAME_OF_FILE=", "\""+nameOfFile+"\"");
 		result.put("#DRETITLE\n", nameOfFile);
+		Encoder enc = Base64.getUrlEncoder();
+		String base64name = enc.encodeToString( (nameOfFile+System.currentTimeMillis()) .getBytes() );
+		result.put("#DREFIELD AUTN_IDENTIFIER=", "\""+base64name+"\"");
+
 		//System.out.println("\n\tATTRIBUTE OF FILE - extension: " + ext);
 		result.put("#DREFIELD EXTENSION_OF_FILE=", "\""+ext+"\"");
 		Date lastModified = new Date( file.lastModified());
