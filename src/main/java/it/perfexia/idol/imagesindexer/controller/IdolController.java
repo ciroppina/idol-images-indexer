@@ -81,7 +81,8 @@ public class IdolController {
 		if (! file.isFile()) return "ERROR -1: NON E' UN FILE";
 		if (file.length() < 1) return "ERROR -1: IL FILE HA LUNGHEZZA ZERO";
 		
-		BufferedOutputStream os = new BufferedOutputStream( new FileOutputStream(file + ".base64", false) ); //false=overwrite
+		BufferedOutputStream os = new BufferedOutputStream( new FileOutputStream(
+			new File(workDir +file.getName() + ".base64"), false) ); //false=overwrite
 		os.write(cosa.getBytes());
 		os.flush(); os.close();
 		
@@ -110,6 +111,8 @@ public class IdolController {
 	private String idolIndexPort;
 	@Value( "${idol.bynarydb}" )
 	private String idolBynaryDb;
+	@Value( "${binary.workdir}" )
+	private String workDir;
 	
 	/**
 	 * Tries to index binary content to IDOL Server
@@ -231,15 +234,62 @@ public class IdolController {
 		return content;
 	}
 	
-	public String urlEncodeThis(String url) throws UnsupportedEncodingException {
+	/**
+	 * Utility
+	 * 
+	 * @param url
+	 * @return
+	 * @throws UnsupportedEncodingException
+	 */
+	public static String urlEncodeThis(String url) throws UnsupportedEncodingException {
 		return URLEncoder.encode(url, "UTF-8");
 	}
+
+	/**
+	* Retrieves from IDOL Server a given binary content and, after base64UrlDecoding it,
+	* returns the binary content
+	*
+	* @param text, a free text to query IDOL Server
+	* @return the Base64 urlDecoded binary content, by copying it to the HttpResponse outputStream 
+	* 
+	*/
+	@RequestMapping(value="/retrieve", method = {RequestMethod.GET, RequestMethod.POST} , params= {"text"})
+	public synchronized void retrieveThisByText(
+		@RequestParam String text, HttpServletResponse response) throws IOException {
+		
+		//debug	System.out.println("\n\tSONO IO?: retrieveThisByText \n");
+
+		// LA QUERY IDOL NON FUNZIONA SOLO CON IL PARAM &text=:String
+		String base64encoded = queryIdolforThis(text);
+		
+		Decoder dec = Base64.getUrlDecoder();
+		byte[] base64decoded = dec.decode(base64encoded);
+		
+		String fileName = "retrieved_at_" +System.currentTimeMillis() +".decoded";
+		FileOutputStream os = new FileOutputStream(new File(workDir +fileName), false); 
+		os.write(base64decoded);
+		logger.info("\n\tHO SCRITTO IL FILE BINARIO: " + workDir +fileName  +".decoded \n");
+		os.flush(); os.close();
+		
+		//GRAAAAAAAAAAZIE: https://twilblog.github.io/java/spring/rest/file/stream/2015/08/14/return-a-file-stream-from-spring-rest.html
+		// Set the content type and attachment header
+		response.addHeader("Content-disposition", "attachment;filename="+fileName);
+		response.setContentType("txt/plain");
+		
+		// SOSTITUIRE IN SEGUITO CON QUERY IDOL SERVER
+		// Copy the stream to the response's output stream
+		IOUtils.copy( new FileInputStream(new File(workDir + fileName)), response.getOutputStream());
+		response.flushBuffer();
+	}
+
 	
 	/**
 	* Retrieves from IDOL Server a given binary content and, after base64UrlDecoding it,
 	* returns the binary content
 	*
-	* @param fileName:String, a FS filePath or a IDOLServer UUID
+	* @param fileName:String, the indexed DREREFERENCE or a IDOLServer UUID
+	* <h3>CAREFUL !!!!!: urlEncode fileName BEFORE calling this method,
+	*     otherwise U'll get an Illegal target Exception  </h3>
 	*
 	* @return the Base64 urlDecoded binary content, by copying it to the HttpResponse outputStream 
 	*/
@@ -247,13 +297,8 @@ public class IdolController {
 	public synchronized void retrieveThisBinaryContent(
 		@RequestParam String fileName, HttpServletResponse response) throws IOException {
 		
-		/* QUESTO BLOCCO VA SOSTITUITO CON LA QUERY IDOL
-		BufferedInputStream is = new BufferedInputStream(new FileInputStream(new File(fileName + ".base64")));
-		byte[] base64encoded = new byte[is.available()];
-		is.read(base64encoded);
-		is.close();
-		*/
-		
+		//debug	System.out.println("\n\tSONO IO?: retrieveThisBinaryContent \n");
+
 		String nameOfFile = new File(fileName).getName();
 		// LA QUERY IDOL
 		String base64encoded = queryIdolforThis(nameOfFile);
@@ -261,9 +306,9 @@ public class IdolController {
 		Decoder dec = Base64.getUrlDecoder();
 		byte[] base64decoded = dec.decode(base64encoded);
 		
-		FileOutputStream os = new FileOutputStream(new File(fileName + ".decoded"), false); 
+		FileOutputStream os = new FileOutputStream(new File(workDir +nameOfFile +".decoded"), false); 
 		os.write(base64decoded);
-		logger.info("\n\tHO SCRITTO IL FILE BINARIO: " + fileName + ".decoded \n");
+		logger.info("\n\tHO SCRITTO IL FILE BINARIO: " + workDir +nameOfFile  +".decoded \n");
 		os.flush(); os.close();
 		
 		//GRAAAAAAAAAAZIE: https://twilblog.github.io/java/spring/rest/file/stream/2015/08/14/return-a-file-stream-from-spring-rest.html
@@ -271,7 +316,6 @@ public class IdolController {
 		response.addHeader("Content-disposition", "attachment;filename=" +fileName+ ".decoded");
 		response.setContentType("txt/plain");
 		
-		// SOSTITUIRE IN SEGUITO CON QUERY IDOL SERVER
 		// Copy the stream to the response's output stream
 		IOUtils.copy( new FileInputStream(new File(fileName + ".decoded")), response.getOutputStream());
 		response.flushBuffer();
@@ -280,26 +324,29 @@ public class IdolController {
 	/**
 	 * Retrieves the Base64 UrlEncoded Binary DRECONTENT from Idol Server
 	 * 
-	 * @param nameOfFile
+	 * @param someText
 	 * @return the DRECONTENT String, base64 urlEncoded
 	 * @throws IOException
 	 */
-	private String queryIdolforThis(String nameOfFile) throws IOException {
+	private String queryIdolforThis(String someText) throws IOException {
 		String base64encoded = "";
 		
 		URL indexlUrl = new URL("http://" + idolHost+":" +idolPort 
 			+"/a=query&databaseMatch=" +idolBynaryDb +"&anyLanguage=true"
 			+ "&print=fields&printfields=DREREFERENCE,CONTENT_TYPE,DRECONTENT"
 			+ "&responseFormat=xml&maxResults=1"
-			+ "&text=\"" +nameOfFile +"\"");
+			+ "&text={" +someText +"}");
 		HttpURLConnection conn = (HttpURLConnection) indexlUrl.openConnection();
 		conn.setRequestMethod("POST");
 		conn.setDoInput(true);
 		
+		try {
 		//debug
 		@SuppressWarnings("unused")
 		int responseCode = conn.getResponseCode();
-		
+		} catch(Exception e) {
+			return "<h4>Problem occurred trying to connect a remote IDOLServer</h4>";
+		}
 
 		BufferedReader in = new BufferedReader(new InputStreamReader(
 			conn.getInputStream()));

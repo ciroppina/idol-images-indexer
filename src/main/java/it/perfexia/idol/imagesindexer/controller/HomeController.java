@@ -17,12 +17,16 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Value;
 
 @CrossOrigin(origins = "*")
 //@RequestMapping(produces = MediaType.APPLICATION_JSON_UTF8_VALUE, value = "/home")
 @RestController
 //@org.springframework.stereotype.Controller
 public class HomeController {
+	
+	@Value( "${binary.workdir}" )
+	private String workDir;
 	
 	private final String WELCOME_MSG;
 	public HomeController() {
@@ -43,10 +47,11 @@ public class HomeController {
 		
 		Encoder enc = Base64.getUrlEncoder();
 		String cosa = enc.encodeToString(content);
-		
 		//debug: System.out.println("\n\tBASE64 URLENCODED: \n" + cosa + "");
 		
-		BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(new File(fileName + ".base64"), false) );
+		String nameOfFile = new File(fileName).getName();
+		BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(
+			new File(workDir + nameOfFile + ".base64"), false) );
 		os.write(cosa.getBytes());
 		os.flush(); os.close();
 		// SOSTITUIRE IN SEGUITO CON INDEX-ID DI IDOL SERVER
@@ -67,7 +72,9 @@ public class HomeController {
 	
 	public synchronized InputStream retrieveThisBinaryContent(String fileName) throws IOException {
 		
-		BufferedInputStream is = new BufferedInputStream(new FileInputStream(new File(fileName + ".base64")));
+		String nameOfFile = new File(fileName).getName();
+		BufferedInputStream is = new BufferedInputStream(new FileInputStream(
+			new File(workDir +nameOfFile +".base64")));
 		byte[] base64encoded = new byte[is.available()];
 		is.read(base64encoded);
 		is.close();
@@ -75,13 +82,13 @@ public class HomeController {
 		Decoder dec = Base64.getUrlDecoder();
 		base64encoded = dec.decode(base64encoded);
 		
-		FileOutputStream os = new FileOutputStream(new File(fileName + ".decoded"), false); 
+		FileOutputStream os = new FileOutputStream(new File(workDir +nameOfFile +".decoded"), false); 
 		os.write(base64encoded);
-		System.out.println("\n\tHO SCRITTO IL FILE BINARIO: " + fileName + ".decoded");
+		System.out.println("\n\tHO SCRITTO IL FILE BINARIO: " +workDir +nameOfFile +".decoded");
 		os.flush(); os.close();
 		
 		// SOSTITUIRE IN SEGUITO CON QUERY IDOL SERVER
-		return new BufferedInputStream(new FileInputStream(new File(fileName + ".decoded")));
+		return new BufferedInputStream(new FileInputStream(new File(workDir +nameOfFile +".decoded")));
 	}
 
 }
