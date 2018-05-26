@@ -51,7 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(origins = "*")
 @Configuration
 @PropertySource("classpath:application.properties")
-//@RequestMapping(produces = MediaType.APPLICATION_JSON_UTF8_VALUE, value = "/home")
+//@RequestMapping(produces = MediaType.APPLICATION_JSON_UTF8_VALUE, value = "/")
 @RestController
 //@org.springframework.stereotype.Controller
 public class IdolController {
